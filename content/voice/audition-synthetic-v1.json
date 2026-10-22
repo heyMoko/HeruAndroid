@@ -1,0 +1,15 @@
+﻿{
+  "contentVersion": "meal-ko-v1-audition-synthetic",
+  "status": "timing_mockup_only",
+  "purpose": "Compare pacing and clarity before hiring or recording a real actor.",
+  "isFinalVoice": false,
+  "voiceSource": "Windows System.Speech Korean desktop voice",
+  "clips": [
+    {"file":"audition_A_level1.wav","concept":"A","level":1,"pitch":"default"},
+    {"file":"audition_A_level5.wav","concept":"A","level":5,"pitch":"default"},
+    {"file":"audition_B_level1.wav","concept":"B","level":1,"pitch":"-8%"},
+    {"file":"audition_B_level5.wav","concept":"B","level":5,"pitch":"-8%"},
+    {"file":"audition_C_level1.wav","concept":"C","level":1,"pitch":"+4%"},
+    {"file":"audition_C_level5.wav","concept":"C","level":5,"pitch":"+4%"}
+  ]
+}

@@ -1,0 +1,141 @@
+{
+  "contentVersion": "meal-ko-v1",
+  "scenario": "meal_preparation",
+  "status": "recording_brief",
+  "createdAt": "2026-10-22",
+  "appAudioStatus": "temporary_windows_synthesis",
+  "spokenLanguage": "ko-KR",
+  "targetAction": "장난감을 내려놓고 식탁에 앉기",
+  "destination": "app/src/main/assets/audio",
+  "fileCount": 16,
+  "clips": [
+    {
+      "file": "main_1_mom.wav",
+      "level": 1,
+      "section": "main",
+      "guardian": "mom",
+      "text": "식사 시간이네. 장난감을 내려놓고 식탁에 앉아 볼까?",
+      "delivery": "다정한 제안. 자연스러운 중저음. 마지막 질문은 부드럽게 올리고 대답을 재촉하지 않는다."
+    },
+    {
+      "file": "main_1_dad.wav",
+      "level": 1,
+      "section": "main",
+      "guardian": "dad",
+      "text": "식사 시간이네. 장난감을 내려놓고 식탁에 앉아 볼까?",
+      "delivery": "다정한 제안. 자연스러운 중저음. 마지막 질문은 부드럽게 올리고 대답을 재촉하지 않는다."
+    },
+    {
+      "file": "follow_1.wav",
+      "level": 1,
+      "section": "follow",
+      "guardian": "any",
+      "text": "지금 할 일은 식탁에 앉는 거야. 도움이 필요하면 엄마나 아빠에게 말해 줘.",
+      "delivery": "다정한 제안. 자연스러운 중저음. 마지막 질문은 부드럽게 올리고 대답을 재촉하지 않는다. 추가 안내에서는 도입 호통을 반복하지 않는다."
+    },
+    {
+      "file": "main_2_mom.wav",
+      "level": 2,
+      "section": "main",
+      "guardian": "mom",
+      "text": "이제 식사 시간이야. 장난감을 내려놓고 식탁에 앉자.",
+      "delivery": "일상적인 어른의 또렷한 안내. 군더더기 없이 말하고 문장 끝을 안정적으로 맺는다."
+    },
+    {
+      "file": "main_2_dad.wav",
+      "level": 2,
+      "section": "main",
+      "guardian": "dad",
+      "text": "이제 식사 시간이야. 장난감을 내려놓고 식탁에 앉자.",
+      "delivery": "일상적인 어른의 또렷한 안내. 군더더기 없이 말하고 문장 끝을 안정적으로 맺는다."
+    },
+    {
+      "file": "follow_2.wav",
+      "level": 2,
+      "section": "follow",
+      "guardian": "any",
+      "text": "지금 할 일은 식탁에 앉는 거야. 도움이 필요하면 엄마나 아빠에게 말해 줘.",
+      "delivery": "일상적인 어른의 또렷한 안내. 군더더기 없이 말하고 문장 끝을 안정적으로 맺는다. 추가 안내에서는 도입 호통을 반복하지 않는다."
+    },
+    {
+      "file": "main_3_mom.wav",
+      "level": 3,
+      "section": "main",
+      "guardian": "mom",
+      "text": "지금은 식사 시간이야. 장난감을 내려놓고 식탁에 앉아야 해.",
+      "delivery": "차분하지만 분명한 지시. '지금은'과 '앉아야 해'를 또렷하게. 애원하거나 웃으며 흐리지 않는다."
+    },
+    {
+      "file": "main_3_dad.wav",
+      "level": 3,
+      "section": "main",
+      "guardian": "dad",
+      "text": "지금은 식사 시간이야. 장난감을 내려놓고 식탁에 앉아야 해.",
+      "delivery": "차분하지만 분명한 지시. '지금은'과 '앉아야 해'를 또렷하게. 애원하거나 웃으며 흐리지 않는다."
+    },
+    {
+      "file": "follow_3.wav",
+      "level": 3,
+      "section": "follow",
+      "guardian": "any",
+      "text": "장난감을 내려놓고 식탁에 앉자. 도움이 필요하면 엄마나 아빠에게 말해.",
+      "delivery": "차분하지만 분명한 지시. '지금은'과 '앉아야 해'를 또렷하게. 애원하거나 웃으며 흐리지 않는다. 추가 안내에서는 도입 호통을 반복하지 않는다."
+    },
+    {
+      "file": "main_4_mom.wav",
+      "level": 4,
+      "section": "main",
+      "guardian": "mom",
+      "text": "식사 시간이다. 이제 놀이를 멈추고, 장난감을 내려놓고 식탁에 앉아라.",
+      "delivery": "엄한 도깨비의 명령조. 낮게 끊어 말하되 고함이나 거친 숨으로 강도를 만들지 않는다."
+    },
+    {
+      "file": "main_4_dad.wav",
+      "level": 4,
+      "section": "main",
+      "guardian": "dad",
+      "text": "식사 시간이다. 이제 놀이를 멈추고, 장난감을 내려놓고 식탁에 앉아라.",
+      "delivery": "엄한 도깨비의 명령조. 낮게 끊어 말하되 고함이나 거친 숨으로 강도를 만들지 않는다."
+    },
+    {
+      "file": "follow_4.wav",
+      "level": 4,
+      "section": "follow",
+      "guardian": "any",
+      "text": "장난감을 내려놓고 식탁에 앉아라. 도움이 필요하면 엄마나 아빠에게 말해라.",
+      "delivery": "엄한 도깨비의 명령조. 낮게 끊어 말하되 고함이나 거친 숨으로 강도를 만들지 않는다. 추가 안내에서는 도입 호통을 반복하지 않는다."
+    },
+    {
+      "file": "main_5_mom.wav",
+      "level": 5,
+      "section": "main",
+      "guardian": "mom",
+      "text": "누구야! 누가 밥 먹을 시간에 아직 놀고 있어! 엄마가 식사 시간이라고 했지! 장난감 내려놓고, 얼른 식탁에 앉아라!",
+      "delivery": "짧은 호통형 도입. '누구야!' 뒤 한 박자 쉬고 상황을 상기한 뒤 행동 지시로 연결. 끝까지 소리를 높이지 않는다."
+    },
+    {
+      "file": "main_5_dad.wav",
+      "level": 5,
+      "section": "main",
+      "guardian": "dad",
+      "text": "누구야! 누가 밥 먹을 시간에 아직 놀고 있어! 아빠가 식사 시간이라고 했지! 장난감 내려놓고, 얼른 식탁에 앉아라!",
+      "delivery": "짧은 호통형 도입. '누구야!' 뒤 한 박자 쉬고 상황을 상기한 뒤 행동 지시로 연결. 끝까지 소리를 높이지 않는다."
+    },
+    {
+      "file": "follow_5.wav",
+      "level": 5,
+      "section": "follow",
+      "guardian": "any",
+      "text": "장난감을 내려놓고 식탁에 앉아라. 도움이 필요하면 엄마나 아빠에게 말해라.",
+      "delivery": "짧은 호통형 도입. '누구야!' 뒤 한 박자 쉬고 상황을 상기한 뒤 행동 지시로 연결. 끝까지 소리를 높이지 않는다. 추가 안내에서는 도입 호통을 반복하지 않는다."
+    },
+    {
+      "file": "finish.wav",
+      "level": 0,
+      "section": "finish",
+      "guardian": "any",
+      "text": "자리에 앉았구나. 잘했다. 나는 이만 가마.",
+      "delivery": "관찰한 행동을 담담하게 인정하고 편안하게 물러난다. 웃음소리나 추가 훈계 없이 끝낸다."
+    }
+  ]
+}
