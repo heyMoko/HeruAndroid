@@ -10,6 +10,17 @@ class CallSessionTest {
         assertEquals(Phase.WAITING, session().speechFinished().phase)
     }
 
+    @Test fun warningWaitsForConnectionAndParentExplanation() {
+        val dialing = session().copy(phase = Phase.DIALING)
+        assertEquals(dialing, dialing.parentSpoke())
+        val greeting = dialing.connect()
+        assertEquals(Phase.GREETING, greeting.phase)
+        assertEquals(greeting, greeting.parentSpoke())
+        val parentTurn = greeting.greetingFinished()
+        assertEquals(Phase.PARENT_TURN, parentTurn.phase)
+        assertEquals(Phase.SPEAKING, parentTurn.parentSpoke().phase)
+    }
+
     @Test fun followUpCanOnlyRunOnce() {
         val once = session().speechFinished().followUp().speechFinished()
         assertTrue(once.followUpUsed)

@@ -8,6 +8,10 @@ import org.json.JSONObject
 class LocalStore(context: Context) {
     private val prefs = context.getSharedPreferences("heru_prototype", Context.MODE_PRIVATE)
     fun level() = prefs.getInt("level", 1).coerceIn(1, 5)
+    fun selfViewEnabled() = prefs.getBoolean("self_view_enabled", false)
+    fun setSelfViewEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("self_view_enabled", enabled).apply()
+    }
     fun stars() = prefs.getInt("stars", 0).coerceAtLeast(0)
     fun addStar(): Int {
         val next = stars() + 1

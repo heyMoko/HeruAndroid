@@ -10,7 +10,7 @@ enum class Outcome(val label: String) {
     STOPPED("불편해서 중단했어요")
 }
 
-enum class Phase { COUNTDOWN, SPEAKING, WAITING, PRAISE_READY, PRAISE_COUNTDOWN, PRAISE_SPEAKING, SUCCESS_WAITING, CLOSING, STAR_REWARD, RESULT, SAVED }
+enum class Phase { DIALING, GREETING, PARENT_TURN, SPEAKING, WAITING, PRAISE_READY, PRAISE_COUNTDOWN, PRAISE_SPEAKING, SUCCESS_WAITING, CLOSING, STAR_REWARD, RESULT, SAVED }
 
 data class CallSession(
     val id: String,
@@ -21,8 +21,12 @@ data class CallSession(
     val followUpUsed: Boolean = false,
 ) {
     init { require(level in 1..5) }
-    fun startSpeaking(): CallSession =
-        if (phase == Phase.COUNTDOWN) copy(phase = Phase.SPEAKING) else this
+    fun connect(): CallSession =
+        if (phase == Phase.DIALING) copy(phase = Phase.GREETING) else this
+    fun greetingFinished(): CallSession =
+        if (phase == Phase.GREETING) copy(phase = Phase.PARENT_TURN) else this
+    fun parentSpoke(): CallSession =
+        if (phase == Phase.PARENT_TURN) copy(phase = Phase.SPEAKING) else this
     fun speechFinished() = when (phase) {
         Phase.SPEAKING -> copy(phase = Phase.WAITING)
         Phase.PRAISE_SPEAKING -> copy(phase = Phase.SUCCESS_WAITING)

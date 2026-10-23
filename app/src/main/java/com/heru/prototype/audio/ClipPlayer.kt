@@ -19,7 +19,7 @@ class ClipPlayer(private val context: Context) {
     var onInterrupted: () -> Unit = {}
     var onError: (String) -> Unit = {}
 
-    fun play(asset: String, onComplete: () -> Unit) {
+    fun play(asset: String, looping: Boolean = false, onComplete: () -> Unit) {
         stop()
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
             .setAudioAttributes(attributes)
@@ -41,6 +41,7 @@ class ClipPlayer(private val context: Context) {
             val clip = MediaPlayer()
             player = clip
             clip.setAudioAttributes(attributes)
+            clip.isLooping = looping
             context.assets.openFd(asset).use { fd ->
                 clip.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
             }
