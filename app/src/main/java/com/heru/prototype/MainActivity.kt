@@ -42,8 +42,6 @@ import androidx.compose.ui.unit.*
 import androidx.lifecycle.ViewModelProvider
 import androidx.core.view.WindowCompat
 import com.heru.prototype.domain.*
-import java.text.SimpleDateFormat
-import java.util.*
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -77,12 +75,17 @@ class MainActivity : ComponentActivity() {
             ) { HeruApp(model) }
         }
     }
-    override fun onStop() { model.hostStopped(); super.onStop() }
+    override fun onStart() { super.onStart(); model.hostResumed() }
+    override fun onStop() { if (!isChangingConfigurations) model.hostStopped(); super.onStop() }
     override fun onDestroy() { unregisterReceiver(noisy); super.onDestroy() }
 }
 
 @Composable
 private fun HeruApp(model: HeruViewModel) {
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(model.message) {
+        model.message?.let { snackbar.showSnackbar(it); model.dismissMessage() }
+    }
     val session = model.session
     val dialing = session?.phase == Phase.DIALING
     val childCall = session?.phase in listOf(Phase.GREETING, Phase.PARENT_TURN,
@@ -96,46 +99,119 @@ private fun HeruApp(model: HeruViewModel) {
             }
         }
     }
-    BackHandler(enabled = session != null || model.history) {
+    BackHandler(enabled = session != null || model.tab != 0 || model.preparingCall) {
         if (dialing) model.cancelDialing()
-        else if (session != null && session.phase !in listOf(Phase.RESULT, Phase.SAVED)) model.stop()
-        else model.home()
+        else if (session != null) model.home()
+        else if (model.preparingCall) model.closeCallSetup()
+        else model.selectTab(0)
     }
     Box(Modifier.fillMaxSize().background(
         Brush.verticalGradient(listOf(Background, Color(0xFFF8FBFF)))
     )) {
         Column(if (childCall || dialing) Modifier.fillMaxSize()
             else Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            if (session?.phase != Phase.STAR_REWARD && !childCall && !dialing) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                Text("heru", color = PrimaryBlue, fontSize = 28.sp, fontWeight = FontWeight.Black,
-                    letterSpacing = (-1).sp)
-                Spacer(Modifier.width(10.dp))
-                Surface(color = SoftBlue, shape = RoundedCornerShape(6.dp)) {
-                    Text("시제품", Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                        color = DeepBlue, fontSize = 11.sp)
+            val parentArea = session == null
+            if (parentArea && !model.loading && !model.loadFailed) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("heru", color = PrimaryBlue, fontSize = 28.sp, fontWeight = FontWeight.Black,
+                        letterSpacing = (-1).sp)
+                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.weight(1f))
+                    ChildPicker(model)
                 }
-                Spacer(Modifier.weight(1f))
-                if (session == null && !model.history) {
-                    TextButton(onClick = model::showHistory, modifier = Modifier.testTag("history")) {
-                        Text("기록 ${model.records.size}", color = SubtleText)
+            }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    model.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    model.loadFailed -> Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("기록을 열지 못했어요", color = MainText, fontSize = 20.sp)
+                        Button(onClick = model::load) { Text("다시 시도") }
                     }
-                } else if (model.history) {
-                    TextButton(onClick = model::home) { Text("닫기", color = DeepBlue) }
+                    session == null && model.preparingCall -> ActivitySetupScreen(model)
+                    session == null && model.tab == 2 -> ActivityHistoryScreen(model)
+                    session == null && model.tab == 1 -> RewardSetupScreen(model)
+                    session == null -> TodayScreen(model)
+                    session.phase == Phase.DIALING -> DialingScreen(model)
+                    session.phase == Phase.PRAISE_COUNTDOWN -> CountdownScreen(model)
+                    childCall -> ChildModeScreen(model, session)
+                    session.phase == Phase.STAR_REWARD -> StarRewardScreen(model)
+                    session.phase == Phase.RESULT -> ResultScreen(model)
+                    session.phase == Phase.SAVED -> SavedScreen(model)
+                    else -> CallScreen(model, session)
                 }
             }
+            if (parentArea && !model.loading && !model.loadFailed && !model.preparingCall) {
+                ParentBottomBar(selectedTab = model.tab, enabled = !model.busy, onSelect = model::selectTab)
             }
-            when {
-                model.history -> HistoryScreen(model)
-                session == null -> SetupScreen(model)
-                session.phase == Phase.DIALING -> DialingScreen(model)
-                session.phase == Phase.PRAISE_COUNTDOWN -> CountdownScreen(model)
-                childCall -> ChildModeScreen(model, session)
-                session.phase == Phase.STAR_REWARD -> StarRewardScreen(model)
-                session.phase == Phase.RESULT -> ResultScreen(model)
-                session.phase == Phase.SAVED -> SavedScreen(model)
-                else -> CallScreen(model, session)
+        }
+        if (model.busy) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding())
+        SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
+            .padding(bottom = if (session == null && !model.preparingCall) 80.dp else 16.dp))
+        if (model.goalReached && session?.phase != Phase.STAR_REWARD) {
+            AlertDialog(
+                onDismissRequest = model::dismissGoalReached,
+                title = { Text("별 목표 달성!") },
+                text = { Text("축하해요! 별 ${model.rewardTarget}개를 모아 '${model.rewardTitle}' 목표에 도달했어요.") },
+                confirmButton = {
+                    TextButton(onClick = model::dismissGoalReached, enabled = !model.busy) { Text("확인") }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ParentBottomBar(selectedTab: Int, enabled: Boolean, onSelect: (Int) -> Unit) {
+    NavigationBar(containerColor = Background, tonalElevation = 0.dp, windowInsets = WindowInsets(0, 0, 0, 0),
+        modifier = Modifier.border(BorderStroke(1.dp, BorderBlue))) {
+        listOf("오늘", "보상", "기록").forEachIndexed { index, label ->
+            NavigationBarItem(
+                enabled = enabled,
+                selected = selectedTab == index,
+                onClick = { onSelect(index) },
+                icon = { ParentTabIcon(index) },
+                label = { Text(label) },
+                modifier = Modifier.testTag("tab_$index")
+            )
+        }
+    }
+}
+
+@Composable
+private fun ParentTabIcon(index: Int) {
+    val color = LocalContentColor.current
+    Canvas(Modifier.size(23.dp)) {
+        val line = 1.8.dp.toPx()
+        when (index) {
+            0 -> {
+                val house = Path().apply {
+                    moveTo(size.width * .1f, size.height * .45f); lineTo(size.width * .5f, size.height * .1f)
+                    lineTo(size.width * .9f, size.height * .45f); moveTo(size.width * .2f, size.height * .4f)
+                    lineTo(size.width * .2f, size.height * .9f); lineTo(size.width * .8f, size.height * .9f)
+                    lineTo(size.width * .8f, size.height * .4f)
+                }
+                drawPath(house, color, style = Stroke(line, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+            1 -> {
+                val star = Path().apply {
+                    repeat(10) { point ->
+                        val angle = -Math.PI / 2 + point * Math.PI / 5
+                        val radius = size.width * if (point % 2 == 0) .46f else .21f
+                        val x = size.width / 2 + kotlin.math.cos(angle).toFloat() * radius
+                        val y = size.height / 2 + kotlin.math.sin(angle).toFloat() * radius
+                        if (point == 0) moveTo(x, y) else lineTo(x, y)
+                    }; close()
+                }
+                drawPath(star, color, style = Stroke(line, join = StrokeJoin.Round))
+            }
+            else -> {
+                drawRoundRect(color, topLeft = Offset(size.width * .12f, size.height * .18f),
+                    size = androidx.compose.ui.geometry.Size(size.width * .76f, size.height * .72f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()), style = Stroke(line))
+                drawLine(color, Offset(size.width * .12f, size.height * .4f), Offset(size.width * .88f, size.height * .4f), line)
+                drawLine(color, Offset(size.width * .32f, 0f), Offset(size.width * .32f, size.height * .3f), line, StrokeCap.Round)
+                drawLine(color, Offset(size.width * .68f, 0f), Offset(size.width * .68f, size.height * .3f), line, StrokeCap.Round)
             }
         }
     }
@@ -156,7 +232,7 @@ private fun DialingScreen(model: HeruViewModel) {
                 }.border(1.dp, Color.White.copy(alpha = .26f), CircleShape))
                 Surface(Modifier.size(186.dp), shape = CircleShape,
                     color = Color(0xFFB8D6E8), border = BorderStroke(2.dp, Color.White.copy(alpha = .8f))) {
-                    HeruCharacter(false, Modifier.fillMaxSize(), fillFrame = true)
+                    HeruDialAvatar()
                 }
             }
             Spacer(Modifier.height(22.dp))
@@ -168,16 +244,34 @@ private fun DialingScreen(model: HeruViewModel) {
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(horizontal = 26.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally) {
-            Button(onClick = model::connect, modifier = Modifier.fillMaxWidth()
+            Button(onClick = model::connect, enabled = !model.busy, modifier = Modifier.fillMaxWidth()
                 .height(58.dp).testTag("connect_call"), shape = RoundedCornerShape(18.dp)) {
                 Text("연결하기", fontSize = 17.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = model::cancelDialing,
+            TextButton(onClick = model::cancelDialing, enabled = !model.busy,
                 modifier = Modifier.testTag("cancel_call")) {
                 Text("전화 취소", color = Color.White.copy(alpha = .8f))
             }
         }
+    }
+}
+
+@Composable
+private fun HeruDialAvatar() {
+    val portrait = ImageBitmap.imageResource(R.drawable.heru_guardian)
+    Canvas(Modifier.fillMaxSize()) {
+        // The call portrait uses the face and beard, not the full-body canvas.
+        val cropSide = (portrait.width * .57f).toInt()
+        val left = (portrait.width - cropSide) / 2 + (portrait.width * .025f).toInt()
+        drawImage(
+            image = portrait,
+            srcOffset = IntOffset(left, 0),
+            srcSize = IntSize(cropSide, cropSide),
+            dstOffset = IntOffset(0, (size.height * .08f).toInt()),
+            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+            filterQuality = FilterQuality.High
+        )
     }
 }
 
@@ -194,7 +288,7 @@ private fun CountdownScreen(model: HeruViewModel) {
         Text("${model.countdownSeconds}", color = PrimaryBlue, fontSize = 96.sp,
             fontWeight = FontWeight.Black)
         Spacer(Modifier.height(28.dp))
-        OutlinedButton(onClick = model::stop, modifier = Modifier.testTag("cancel_countdown")) {
+        OutlinedButton(onClick = { model.pauseCurrent() }, modifier = Modifier.testTag("cancel_countdown")) {
             Text("취소")
         }
     }
@@ -248,20 +342,21 @@ private fun ChildModeScreen(model: HeruViewModel, session: CallSession) {
                 Text("부모가 말할 차례", color = Color.White.copy(alpha = .75f),
                     fontSize = 13.sp)
                 Spacer(Modifier.height(10.dp))
-                Text("“네, 우리 ○○이가 밥을 안 먹어요.”",
+                Text("“네, 우리 아이가 ${model.routine.parentExample}.”",
                     color = Color.White, fontSize = 18.sp, lineHeight = 26.sp,
                     textAlign = TextAlign.Center)
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = model::parentSpoke, modifier = Modifier.fillMaxWidth()
+                Button(onClick = model::parentSpoke, enabled = !model.busy, modifier = Modifier.fillMaxWidth()
                     .height(54.dp).testTag("parent_spoke"),
                     shape = RoundedCornerShape(15.dp)) {
                     Text("말했어요", fontWeight = FontWeight.Bold)
                 }
-                TextButton(onClick = model::stop) {
+                TextButton(onClick = { model.pauseCurrent() }) {
                     Text("통화 종료", color = Color.White.copy(alpha = .7f))
                 }
             }
-        } else Row(Modifier.align(Alignment.BottomCenter)
+        } else {
+            Row(Modifier.align(Alignment.BottomCenter)
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(bottom = 22.dp),
             horizontalArrangement = Arrangement.spacedBy(26.dp),
@@ -275,7 +370,8 @@ private fun ChildModeScreen(model: HeruViewModel, session: CallSession) {
                 } else cameraPermission.launch(Manifest.permission.CAMERA)
             }
             VideoCallAction(camera = false, active = true, label = "통화 종료",
-                modifier = Modifier.testTag("end_call"), onClick = model::stop)
+                modifier = Modifier.testTag("end_call"), onClick = { model.pauseCurrent() })
+            }
         }
     }
 }
@@ -317,148 +413,29 @@ private fun VideoCallAction(camera: Boolean, active: Boolean, label: String,
         }
     }
 }
-@Composable
-private fun SetupScreen(model: HeruViewModel) {
-    val context = LocalContext.current
-    var cameraNotice by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(model.selfViewEnabled) {
-        if (model.selfViewEnabled &&
-            context.checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            model.chooseSelfView(false)
-        }
-    }
-    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        model.chooseSelfView(granted)
-        cameraNotice = if (granted) null else "카메라 없이도 해루를 볼 수 있어요."
-    }
-    Column(Modifier.fillMaxSize()) {
-    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-        .padding(horizontal = 24.dp).padding(bottom = 12.dp)) {
-        Spacer(Modifier.height(12.dp))
-        Text("필요한 순간, 해루를 불러요", color = SubtleText, fontSize = 14.sp)
-        Spacer(Modifier.height(10.dp))
-        Text("오늘의 약속을\n들려줄 시간", color = MainText, fontSize = 32.sp,
-            fontWeight = FontWeight.Bold, lineHeight = 42.sp)
-        Surface(color = SoftBlue, shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, BorderBlue),
-            modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp)) {
-            Row(Modifier.padding(start = 18.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Surface(color = Background, shape = RoundedCornerShape(8.dp)) {
-                        Text("01  식사 준비", Modifier.padding(10.dp), color = DeepBlue, fontSize = 12.sp)
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    Text("장난감 내려놓고\n식탁에 앉기", color = MainText, fontSize = 19.sp,
-                        lineHeight = 29.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    Text("한 번에 행동 하나만", color = SubtleText, fontSize = 12.sp)
-                }
-                HeruCharacter(model.previewing, Modifier.size(width = 132.dp, height = 188.dp))
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("표현 강도", color = MainText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.weight(1f))
-            Text("부모가 직접 선택해요", color = SubtleText, fontSize = 11.sp)
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            (1..5).forEach { level ->
-                val selected = level == model.level
-                Surface(
-                    color = if (selected) PrimaryBlue else CardBlue,
-                    shape = RoundedCornerShape(14.dp),
-                    border = if (selected) null else BorderStroke(1.dp, BorderBlue),
-                    modifier = Modifier.weight(1f).heightIn(min = 80.dp)
-                        .testTag("level_$level")
-                        .semantics { role = Role.RadioButton; this.selected = selected }
-                        .clickable { model.chooseLevel(level) }
-                ) {
-                    Column(Modifier.padding(vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("$level", fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                            color = if (selected) Background else MainText)
-                        Spacer(Modifier.height(4.dp))
-                        Text(ScriptCatalog.labels[level - 1], fontSize = 10.sp,
-                            color = if (selected) Background else SubtleText, textAlign = TextAlign.Center)
-                    }
-                }
-            }
-        }
-        Surface(color = CardBlue, shape = RoundedCornerShape(18.dp),
-            border = BorderStroke(1.dp, BorderBlue),
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Column(Modifier.padding(18.dp)) {
-                Text("${model.level}단계 · ${ScriptCatalog.labels[model.level - 1]}",
-                    color = PrimaryBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(10.dp))
-                Text(ScriptCatalog.main(model.level, model.guardian), color = MainText,
-                    fontSize = 16.sp, lineHeight = 27.sp, modifier = Modifier.testTag("script"))
-                Spacer(Modifier.height(10.dp))
-                Text("해루의 녹음 목소리로 들려줘요", color = SubtleText, fontSize = 11.sp)
-            }
-        }
-    }
-    Column(Modifier.fillMaxWidth().background(Background)
-        .padding(horizontal = 24.dp).padding(top = 12.dp, bottom = 16.dp)) {
-        model.message?.let { Message(it) }
-        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("아이 모습도 함께 보기", color = MainText,
-                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text("전면카메라 미리보기 · 저장하거나 전송하지 않아요",
-                    color = SubtleText, fontSize = 11.sp)
-            }
-            Switch(checked = model.selfViewEnabled, modifier = Modifier.testTag("self_view_toggle"),
-                onCheckedChange = { enabled ->
-                    cameraNotice = null
-                    if (!enabled) model.chooseSelfView(false)
-                    else if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FRONT)) {
-                        cameraNotice = "이 기기에는 전면카메라가 없어요."
-                    } else if (context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                        model.chooseSelfView(true)
-                    } else cameraPermission.launch(Manifest.permission.CAMERA)
-                })
-        }
-        cameraNotice?.let { Text(it, color = SubtleText, fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 8.dp)) }
-        OutlinedButton(onClick = model::preview, modifier = Modifier.fillMaxWidth()
-            .heightIn(min = 52.dp).testTag("preview"), shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, BorderBlue)) {
-            Text(if (model.previewing) "미리 듣기 멈추기" else "대사 미리 듣기", color = DeepBlue)
-        }
-        Spacer(Modifier.height(10.dp))
-        Button(onClick = model::start, modifier = Modifier.fillMaxWidth()
-            .heightIn(min = 56.dp).testTag("start"), shape = RoundedCornerShape(16.dp)) {
-            Text("해루 부르기", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        }
-        Spacer(Modifier.height(12.dp))
-        Text("이야기 속 도깨비의 상황극이에요. 먼저 부모가 들어보고 보여주세요.",
-            color = SubtleText, fontSize = 11.sp, lineHeight = 18.sp)
-    }
-    }
-}
 
 @Composable
 private fun CallScreen(model: HeruViewModel, session: CallSession) {
     val choosingPraise = session.phase == Phase.PRAISE_READY
+    var repeatLevel by remember(session.id) { mutableIntStateOf(session.followUpLevel ?: session.level) }
+    val warningLevels = session.followUpLevel?.let { "${session.level} → ${it}단계" }
+        ?: "${session.level}단계"
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
         .padding(horizontal = 24.dp).padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(18.dp))
-        Text(if (choosingPraise) "식사 시작 · 칭찬 선택" else "식사 준비 · ${session.level}단계", color = PrimaryBlue, fontSize = 13.sp)
+        Text(if (choosingPraise) "${session.routine.label} 시작 · 칭찬 선택" else "${session.routine.label} 준비 · $warningLevels",
+            color = PrimaryBlue, fontSize = 13.sp)
         Spacer(Modifier.height(8.dp))
         Text(when (session.phase) {
-            Phase.CLOSING -> "식사를 마무리하고 있어요"
+            Phase.CLOSING -> "${session.routine.objectPhrase} 마무리하고 있어요"
             Phase.PRAISE_READY -> "어떤 칭찬을 들려줄까요?"
-            Phase.SUCCESS_WAITING -> "잘했어요. 식사를 계속해 주세요"
+            Phase.SUCCESS_WAITING -> "잘했어요. 활동을 계속해 주세요"
             Phase.WAITING -> "행동을 시작할 시간을 주세요"
             else -> "해루가 말하고 있어요"
         }, color = MainText, fontSize = 22.sp, fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center)
-        if (!choosingPraise) {
+        if (!choosingPraise && session.phase != Phase.WAITING) {
             Spacer(Modifier.height(28.dp))
             HeruCharacter(false, Modifier.size(width = 180.dp, height = 240.dp))
             Spacer(Modifier.height(24.dp))
@@ -474,14 +451,50 @@ private fun CallScreen(model: HeruViewModel, session: CallSession) {
         if (session.phase == Phase.WAITING) {
             Button(onClick = model::finish, modifier = Modifier.fillMaxWidth()
                 .heightIn(min = 56.dp).testTag("finish"), shape = RoundedCornerShape(16.dp)) {
-                Text("행동을 시작했어요", fontWeight = FontWeight.Bold)
+                Text("잘했어요 · 칭찬 들려주기", fontWeight = FontWeight.Bold)
             }
+            TextButton(onClick = model::rewardCurrent, enabled = !model.busy) { Text("약속을 확인했어요 · 바로 별 주기") }
             Spacer(Modifier.height(10.dp))
-            if (!session.followUpUsed) {
-                OutlinedButton(onClick = model::followUp, modifier = Modifier.fillMaxWidth()
-                    .heightIn(min = 52.dp).testTag("followup"), shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, BorderBlue)) {
-                    Text("같은 강도로 한 번 더 안내", color = DeepBlue)
+            run {
+                Text("아직 오지 않았다면 강도를 다시 골라 주세요", color = MainText,
+                    fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    (1..5).forEach { level ->
+                        val selected = repeatLevel == level
+                        Surface(
+                            color = if (selected) PrimaryBlue else CardBlue,
+                            shape = RoundedCornerShape(14.dp),
+                            border = if (selected) null else BorderStroke(1.dp, BorderBlue),
+                            modifier = Modifier.weight(1f).heightIn(min = 76.dp)
+                                .testTag("repeat_level_$level")
+                                .semantics { role = Role.RadioButton; this.selected = selected }
+                                .clickable { repeatLevel = level }
+                        ) {
+                            Column(Modifier.padding(vertical = 10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("$level", fontSize = 21.sp, fontWeight = FontWeight.Bold,
+                                    color = if (selected) Background else MainText)
+                                Spacer(Modifier.height(4.dp))
+                                Text(ScriptCatalog.labels[level - 1], fontSize = 10.sp,
+                                    color = if (selected) Background else SubtleText,
+                                    textAlign = TextAlign.Center)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Surface(color = CardBlue, shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, BorderBlue), modifier = Modifier.fillMaxWidth()) {
+                    Text(ScriptCatalog.main(repeatLevel, session.guardian, session.routine),
+                        modifier = Modifier.padding(16.dp).testTag("repeat_script"),
+                        color = MainText, fontSize = 15.sp, lineHeight = 24.sp)
+                }
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = { model.followUp(repeatLevel) },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("followup"),
+                    shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, BorderBlue)) {
+                    Text("${repeatLevel}단계로 다시 안내", color = DeepBlue)
                 }
                 Spacer(Modifier.height(10.dp))
             }
@@ -507,7 +520,7 @@ private fun CallScreen(model: HeruViewModel, session: CallSession) {
                                 color = if (selected) Background else DeepBlue,
                                 fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(8.dp))
-                            Text(ScriptCatalog.followUp(level),
+                            Text(ScriptCatalog.followUp(level, session.routine),
                                 color = if (selected) Background else MainText,
                                 fontSize = 16.sp, lineHeight = 25.sp)
                         }
@@ -523,16 +536,21 @@ private fun CallScreen(model: HeruViewModel, session: CallSession) {
             Spacer(Modifier.height(10.dp))
         }
         if (session.phase == Phase.SUCCESS_WAITING) {
-            Text("칭찬을 잘 들었어요. 식사를 끝냈다면 눌러 주세요.",
+            Text("약속을 해냈다면 별을 선물해 주세요. 활동이 더 남았다면 나중에 이어갈 수 있어요.",
                 color = MainText, fontSize = 16.sp, textAlign = TextAlign.Center)
             Spacer(Modifier.height(12.dp))
             Button(onClick = model::complete, modifier = Modifier.fillMaxWidth()
                 .heightIn(min = 56.dp).testTag("complete"), shape = RoundedCornerShape(16.dp)) {
-                Text("식사를 끝냈어요", fontWeight = FontWeight.Bold)
+                Text("오늘 약속을 해냈어요", fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(10.dp))
         }
-        OutlinedButton(onClick = model::stop, modifier = Modifier.fillMaxWidth()
+        OutlinedButton(onClick = { model.pauseCurrent() }, enabled = !model.busy, modifier = Modifier.fillMaxWidth()
+            .heightIn(min = 54.dp).testTag("pause_activity"), shape = RoundedCornerShape(16.dp)) {
+            Text("나중에 이어하기")
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = model::stop, enabled = !model.busy, modifier = Modifier.fillMaxWidth()
             .heightIn(min = 56.dp).testTag("stop"), shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, ErrorRed.copy(alpha = .38f))) {
             Text("지금 종료", color = ErrorRed, fontWeight = FontWeight.Bold)
@@ -550,11 +568,14 @@ private fun ResultScreen(model: HeruViewModel) {
         Spacer(Modifier.height(24.dp))
         Text("방금은 어땠나요?", color = MainText, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
-        Text("이번 식사는 어땠나요?\n부모가 확인한 결과만 기록해요.",
+        Text("이번 활동은 어땠나요?\n부모가 확인한 결과만 기록해요.",
             color = SubtleText, fontSize = 14.sp, lineHeight = 24.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(28.dp))
-        Outcome.entries.forEach { outcome ->
-            OutlinedButton(onClick = { model.save(outcome) },
+        Button(onClick = model::rewardCurrent, enabled = !model.busy,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)) { Text("약속을 해냈어요 · 별 주기") }
+        Spacer(Modifier.height(10.dp))
+        listOf(Outcome.UNCHANGED, Outcome.STOPPED).forEach { outcome ->
+            OutlinedButton(onClick = { model.save(outcome) }, enabled = !model.busy,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp)
                     .padding(bottom = 8.dp).testTag("outcome_${outcome.name}"),
                 shape = RoundedCornerShape(16.dp)) {
@@ -562,9 +583,8 @@ private fun ResultScreen(model: HeruViewModel) {
                     fontSize = 15.sp)
             }
         }
-        model.message?.let { Message(it) }
         TextButton(onClick = model::home, modifier = Modifier.testTag("discard")) {
-            Text("기록하지 않고 돌아가기", color = SubtleText)
+            Text("아직 진행 중이에요 · 나중에 이어하기", color = SubtleText)
         }
     }
 }
@@ -577,63 +597,16 @@ private fun SavedScreen(model: HeruViewModel) {
             Text("✓", Modifier.padding(24.dp), color = DeepBlue, fontSize = 36.sp)
         }
         Spacer(Modifier.height(24.dp))
-        Text("기록했어요", color = MainText, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text(if (model.session?.starAwarded == true) "별 하나와 성취를 기록했어요" else "기록했어요", color = MainText,
+            fontSize = 25.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Spacer(Modifier.height(12.dp))
         Text("이 기기에만 저장돼요", color = SubtleText, fontSize = 14.sp)
         Spacer(Modifier.height(32.dp))
         Button(onClick = model::home, modifier = Modifier.fillMaxWidth().height(56.dp)
-            .testTag("home"), shape = RoundedCornerShape(16.dp)) { Text("처음으로") }
+            .testTag("home"), shape = RoundedCornerShape(16.dp)) { Text("오늘로 돌아가기") }
     }
 }
 
-@Composable
-private fun HistoryScreen(model: HeruViewModel) {
-    var confirmDelete by remember { mutableStateOf(false) }
-    if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false },
-        title = { Text("기록을 모두 지울까요?") },
-        text = { Text("이 기기에 저장된 사용 기록을 지워요. 되돌릴 수 없어요.") },
-        confirmButton = { TextButton(onClick = {
-            model.clearHistory(); confirmDelete = false
-        }) { Text("모두 지우기") } },
-        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } })
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-        .padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
-        Text("우리의 사용 기록", color = MainText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
-        Text("최근 200건 · 이 기기에만 저장", color = SubtleText, fontSize = 12.sp)
-        Spacer(Modifier.height(22.dp))
-        if (model.records.isEmpty()) {
-            Text("아직 기록이 없어요.\n해루를 사용한 뒤 결과를 남겨 보세요.",
-                color = SubtleText, fontSize = 16.sp, lineHeight = 27.sp)
-        }
-        val format = remember { SimpleDateFormat("M월 d일 a h:mm", Locale.KOREAN) }
-        model.records.forEach { row ->
-            Surface(color = CardBlue, shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, BorderBlue),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-                Column(Modifier.padding(18.dp)) {
-                    Text(format.format(Date(row.startedAt)), color = SubtleText, fontSize = 12.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text(row.outcome.label, color = if (row.outcome == Outcome.STARTED) DeepBlue else MainText,
-                        fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                    Spacer(Modifier.height(5.dp))
-                    Text("식사 준비 · ${row.level}단계 · ${row.guardian.label}",
-                        color = SubtleText, fontSize = 12.sp)
-                }
-            }
-        }
-        model.message?.let { Message(it) }
-        if (model.records.isNotEmpty()) TextButton(onClick = { confirmDelete = true }) {
-            Text("기록 모두 지우기", color = ErrorRed)
-        }
-    }
-}
-
-@Composable
-private fun Message(text: String) {
-    Text(text, Modifier.padding(vertical = 12.dp), color = ErrorRed,
-        fontSize = 13.sp, lineHeight = 21.sp)
-}
 
 @Composable
 private fun HeruCharacter(speaking: Boolean, modifier: Modifier = Modifier, fillFrame: Boolean = false) {

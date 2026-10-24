@@ -60,20 +60,14 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-private const val TRAIL_LENGTH = 7
-
 @Composable
 internal fun StarRewardScreen(model: HeruViewModel) {
-    var accepted by remember { mutableStateOf(false) }
-    var trailLit by remember { mutableStateOf(false) }
-    val currentTrail = model.stars % TRAIL_LENGTH
+    val accepted = model.session?.starAwarded == true
 
     LaunchedEffect(accepted) {
         if (accepted) {
-            delay(620)
-            trailLit = true
-            delay(1200)
-            model.awardStar()
+            delay(1600)
+            model.finishRewardPresentation()
         }
     }
 
@@ -87,14 +81,16 @@ internal fun StarRewardScreen(model: HeruViewModel) {
                 color = DeepBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(12.dp))
-        Text("식사 약속을 지켰구나!", color = MainText,
+        Text("${model.session?.routine?.label ?: "오늘의"} 약속을 지켰구나!", color = MainText,
             fontSize = 27.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Spacer(Modifier.height(6.dp))
         Text(if (accepted) "해루가 별 하나를 선물했어" else "해루의 손에서 별을 받아 봐",
             color = SubtleText, fontSize = 15.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(18.dp))
 
-        RewardScene(accepted = accepted, onAccept = { accepted = true })
+        GoalCard(model.goal, model.stars)
+        Spacer(Modifier.height(12.dp))
+        RewardScene(accepted = accepted, enabled = !model.busy, onAccept = model::awardStar)
 
         Spacer(Modifier.height(14.dp))
         Text(if (accepted) "반짝! 오늘의 별이 별길에 놓였어" else "반짝이는 별을 톡 눌러 줘",
@@ -112,17 +108,18 @@ internal fun StarRewardScreen(model: HeruViewModel) {
                     Text("🎁", fontSize = 23.sp)
                 }
                 Spacer(Modifier.height(16.dp))
-                StarTrail(currentTrail + if (trailLit) 1 else 0)
+                StarTrail(model.goal.progress(model.stars), model.goal.target)
                 Spacer(Modifier.height(14.dp))
-                Text("지금까지 모은 별 ${model.stars + if (trailLit) 1 else 0}개",
+                Text("이번 목표 ${model.goal.progress(model.stars)} / ${model.goal.target}개 · 전체 별 ${model.stars}개",
                     color = SubtleText, fontSize = 13.sp)
             }
         }
     }
 }
 
+
 @Composable
-private fun RewardScene(accepted: Boolean, onAccept: () -> Unit) {
+private fun RewardScene(accepted: Boolean, enabled: Boolean, onAccept: () -> Unit) {
     var entered by remember { mutableStateOf(false) }
     var starReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -182,7 +179,7 @@ private fun RewardScene(accepted: Boolean, onAccept: () -> Unit) {
                 }
                 .testTag("award_star")
                 .semantics { contentDescription = "해루의 손에 있는 별 받기" }
-                .clickable(enabled = starReady && !accepted, role = Role.Button, onClick = onAccept),
+                .clickable(enabled = enabled && starReady && !accepted, role = Role.Button, onClick = onAccept),
             contentAlignment = Alignment.Center
         ) {
             BlueStar(Modifier.fillMaxSize())
@@ -226,24 +223,22 @@ private fun BlueStar(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun StarTrail(filled: Int) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center) {
-        repeat(TRAIL_LENGTH) { index ->
-            val lit = index < filled
-            Surface(
-                color = if (lit) PrimaryBlue else SoftBlue,
-                shape = CircleShape,
-                border = if (lit) null else BorderStroke(1.dp, BorderBlue),
-                modifier = Modifier.size(28.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("★", color = if (lit) Background else BorderBlue, fontSize = 16.sp)
+private fun StarTrail(filled: Int, target: Int) {
+    val columns = minOf(target, 8)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        (0 until target).chunked(columns).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                row.forEach { index ->
+                    val lit = index < filled
+                    Surface(color = if (lit) PrimaryBlue else SoftBlue, shape = RoundedCornerShape(10.dp),
+                        border = if (lit) null else BorderStroke(1.dp, BorderBlue),
+                        modifier = Modifier.weight(1f).height(28.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(if (lit) "★" else "☆", color = if (lit) Background else BorderBlue, fontSize = 14.sp)
+                        }
+                    }
                 }
-            }
-            if (index < TRAIL_LENGTH - 1) {
-                Box(Modifier.weight(1f).height(2.dp)
-                    .background(if (index + 1 < filled) PrimaryBlue else BorderBlue))
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f).height(28.dp)) }
             }
         }
     }

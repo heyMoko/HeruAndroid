@@ -21,10 +21,19 @@ class CallSessionTest {
         assertEquals(Phase.SPEAKING, parentTurn.parentSpoke().phase)
     }
 
-    @Test fun followUpCanOnlyRunOnce() {
-        val once = session().speechFinished().followUp().speechFinished()
+    @Test fun followUpCanBeRepeatedWithChosenLevels() {
+        val initial = session().copy(level = 2).speechFinished()
+        val speaking = initial.followUp(5)
+        assertEquals(Phase.SPEAKING, speaking.phase)
+        assertEquals(2, speaking.level)
+        assertEquals(5, speaking.followUpLevel)
+        val once = speaking.speechFinished()
         assertTrue(once.followUpUsed)
-        assertEquals(once, once.followUp())
+        val twice = once.followUp(4)
+        assertEquals(Phase.SPEAKING, twice.phase)
+        assertEquals(listOf(5, 4), twice.followUpLevels)
+        assertEquals(listOf(5, 4), twice.speechFinished().followUpLevels)
+        assertEquals(initial, initial.followUp(6))
     }
 
     @Test fun parentCannotStartClosingWhileMainIsSpeaking() {
