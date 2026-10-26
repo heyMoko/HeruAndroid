@@ -46,6 +46,16 @@ class CallSessionTest {
         assertEquals(Phase.RESULT, result.phase)
     }
 
+    @Test fun backingOutOfStarRewardReturnsToTheScreenThatOpenedIt() {
+        val waiting = session().copy(phase = Phase.WAITING)
+        val reward = waiting.copy(phase = Phase.STAR_REWARD, rewardReturnPhase = waiting.phase)
+        val returned = reward.backFromStarReward()
+        assertEquals(Phase.WAITING, returned.phase)
+        assertNull(returned.rewardReturnPhase)
+        val awarded = reward.copy(starAwarded = true)
+        assertEquals(awarded, awarded.backFromStarReward())
+    }
+
     @Test fun successAudioMustBeCompletedBeforeEndAudio() {
         val started = session().speechFinished().finish()
         assertEquals(Phase.PRAISE_READY, started.phase)

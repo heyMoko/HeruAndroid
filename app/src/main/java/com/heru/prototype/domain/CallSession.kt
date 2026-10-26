@@ -47,6 +47,7 @@ data class CallSession(
     val entryMode: EntryMode = EntryMode.CALL,
     val warningPlayed: Boolean = false,
     val starAwarded: Boolean = false,
+    val rewardReturnPhase: Phase? = null,
 ) {
     init {
         require(level in 1..5)
@@ -80,6 +81,9 @@ data class CallSession(
         if (phase == Phase.SUCCESS_WAITING) copy(phase = Phase.CLOSING) else this
     fun awardStar(): CallSession =
         if (phase == Phase.STAR_REWARD) copy(phase = Phase.RESULT) else this
+    fun backFromStarReward(): CallSession =
+        if (phase == Phase.STAR_REWARD && !starAwarded)
+            copy(phase = rewardReturnPhase ?: Phase.WAITING, rewardReturnPhase = null) else this
     fun stop(): CallSession = if (phase == Phase.SAVED) this else copy(phase = Phase.RESULT)
     fun saved(): CallSession = if (phase == Phase.RESULT) copy(phase = Phase.SAVED) else this
     fun paused(): CallSession = copy(phase = when (phase) {

@@ -64,8 +64,10 @@ internal fun TodayScreen(model: HeruViewModel) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("오늘의 약속", color = MainText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { editPlans = true }) { Text("활동 설정", fontSize = 12.sp) }
+            TextButton(onClick = { editPlans = true }) { Text("루틴 편집", fontSize = 12.sp) }
         }
+        Text("오늘 화면에 보여줄 루틴과 하루 목표 횟수를 바꿔요.",
+            color = SubtleText, fontSize = 12.sp, modifier = Modifier.padding(bottom = 10.dp))
         profile.plans.forEach { (routine, dailyTarget) ->
             val count = model.records.completionsOn(model.today, routine)
             Surface(color = Background, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, BorderBlue),

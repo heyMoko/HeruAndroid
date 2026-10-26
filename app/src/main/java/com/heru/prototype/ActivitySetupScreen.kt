@@ -32,7 +32,6 @@ internal fun ActivitySetupScreen(model: HeruViewModel) {
     }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
-            TextButton(onClick = model::closeCallSetup) { Text("‹ 오늘로 돌아가기") }
             Text("${model.routine.icon} ${model.routine.label} 도움 요청", color = MainText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Text("대사를 확인하고 아이에게 맞는 표현을 골라 주세요.", color = SubtleText, fontSize = 13.sp)

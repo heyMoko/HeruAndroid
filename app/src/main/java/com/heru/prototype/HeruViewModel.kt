@@ -247,7 +247,32 @@ class HeruViewModel(app: Application) : AndroidViewModel(app) {
     fun rewardCurrent() {
         if (busy) return
         val current = session?.takeIf { !it.starAwarded && it.phase in listOf(Phase.WAITING, Phase.PRAISE_READY, Phase.SUCCESS_WAITING, Phase.RESULT) } ?: return
-        stopAllMedia(); move(current.copy(phase = Phase.STAR_REWARD))
+        stopAllMedia(); move(current.copy(phase = Phase.STAR_REWARD, rewardReturnPhase = current.phase))
+    }
+    fun backFromPraise() {
+        val current = session?.takeIf { it.phase == Phase.PRAISE_READY } ?: return
+        if (current.entryMode == EntryMode.PRAISE && !current.warningPlayed) {
+            stopAllMedia()
+            operate {
+                snapshot = repository.discardActivity(current.id)
+                session = null
+                tab = 0
+            }
+        } else move(current.copy(phase = Phase.WAITING))
+    }
+    fun backFromReward() {
+        val current = session?.takeIf { it.phase == Phase.STAR_REWARD && !it.starAwarded } ?: return
+        if (current.entryMode == EntryMode.REWARD) {
+            stopAllMedia()
+            operate {
+                snapshot = repository.discardActivity(current.id)
+                session = null
+                tab = 0
+            }
+        } else {
+            val next = current.backFromStarReward()
+            if (next != current) move(next)
+        }
     }
     private fun speakRoutine(asset: String) {
         scriptJob?.cancel()

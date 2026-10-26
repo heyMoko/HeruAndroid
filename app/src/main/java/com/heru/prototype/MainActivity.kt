@@ -90,6 +90,24 @@ private fun HeruApp(model: HeruViewModel) {
     val dialing = session?.phase == Phase.DIALING
     val childCall = session?.phase in listOf(Phase.GREETING, Phase.PARENT_TURN,
         Phase.SPEAKING, Phase.PRAISE_SPEAKING, Phase.CLOSING)
+    val parentStep = session?.phase in listOf(Phase.WAITING, Phase.PRAISE_READY,
+        Phase.SUCCESS_WAITING, Phase.STAR_REWARD, Phase.RESULT)
+    val showParentTopBar = (session == null || parentStep) && !model.loading && !model.loadFailed
+    val canGoBack = if (session == null) model.tab != 0 || model.preparingCall else when (session.phase) {
+        Phase.PRAISE_READY, Phase.WAITING, Phase.SUCCESS_WAITING, Phase.RESULT -> true
+        Phase.STAR_REWARD -> !session.starAwarded
+        else -> false
+    }
+    val navigateBack: () -> Unit = {
+        when {
+            session == null && model.preparingCall -> model.closeCallSetup()
+            session == null -> model.selectTab(0)
+            session.phase == Phase.DIALING -> model.cancelDialing()
+            session.phase == Phase.PRAISE_READY -> model.backFromPraise()
+            session.phase == Phase.STAR_REWARD -> model.backFromReward()
+            else -> model.home()
+        }
+    }
     val activity = LocalActivity.current
     SideEffect {
         activity?.let {
@@ -99,26 +117,22 @@ private fun HeruApp(model: HeruViewModel) {
             }
         }
     }
-    BackHandler(enabled = session != null || model.tab != 0 || model.preparingCall) {
-        if (dialing) model.cancelDialing()
-        else if (session != null) model.home()
-        else if (model.preparingCall) model.closeCallSetup()
-        else model.selectTab(0)
-    }
+    BackHandler(enabled = session != null || model.tab != 0 || model.preparingCall) { navigateBack() }
     Box(Modifier.fillMaxSize().background(
         Brush.verticalGradient(listOf(Background, Color(0xFFF8FBFF)))
     )) {
         Column(if (childCall || dialing) Modifier.fillMaxSize()
             else Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             val parentArea = session == null
-            if (parentArea && !model.loading && !model.loadFailed) {
+            if (showParentTopBar) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically) {
+                    if (canGoBack) BackArrowButton(navigateBack)
                     Text("heru", color = PrimaryBlue, fontSize = 28.sp, fontWeight = FontWeight.Black,
                         letterSpacing = (-1).sp)
                     Spacer(Modifier.width(10.dp))
                     Spacer(Modifier.weight(1f))
-                    ChildPicker(model)
+                    if (session == null) ChildPicker(model)
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {

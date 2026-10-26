@@ -160,7 +160,8 @@ private fun CallSession.toRow() = HeruDatabase.ActivityRow().also {
     it.payload = JSONObject().put("id", id).put("child", childId).put("routine", routine.name)
         .put("at", startedAt).put("level", level).put("guardian", guardian.name)
         .put("phase", phase.name).put("followUps", JSONArray(followUpLevels)).put("praise", praiseLevel)
-        .put("entry", entryMode.name).put("warning", warningPlayed).toString()
+        .put("entry", entryMode.name).put("warning", warningPlayed)
+        .put("rewardReturnPhase", rewardReturnPhase?.name).toString()
 }
 private fun sessionFromJson(json: JSONObject) = CallSession(
     id = json.getString("id"), level = json.getInt("level"), guardian = Guardian.valueOf(json.getString("guardian")),
@@ -168,7 +169,9 @@ private fun sessionFromJson(json: JSONObject) = CallSession(
     followUpLevels = json.getJSONArray("followUps").let { a -> (0 until a.length()).map { a.getInt(it) } },
     routine = Routine.valueOf(json.getString("routine")), childId = json.getString("child"),
     praiseLevel = json.getInt("praise"), entryMode = EntryMode.valueOf(json.getString("entry")),
-    warningPlayed = json.getBoolean("warning")
+    warningPlayed = json.getBoolean("warning"),
+    rewardReturnPhase = json.optString("rewardReturnPhase").takeIf { it.isNotBlank() && it != "null" }
+        ?.let(Phase::valueOf)
 )
 private fun SessionRecord.toRow() = HeruDatabase.RecordRow().also {
     it.id = id; it.childId = childId; it.finishedAt = finishedAt
